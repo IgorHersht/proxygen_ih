@@ -1,0 +1,2 @@
+yum install ntfs-3g 
+yum install httpd-tools
