@@ -1,0 +1,11 @@
+ tar -xvf foo.tar
+              verbosely extract foo.tar
+
+       tar -xzf foo.tar.gz
+              extract gzipped foo.tar.gz
+/
+       tar -cjf hbase_thrift_client.tar.bz2 hbase_thrift_client
+       tar -cjf git.tar.bz2 git
+              create bzipped tar archive of the directory bar called foo.tar.bz2
+
+       tar -xjf foo.tar.bz2 -C bar/
