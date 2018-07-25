@@ -64,7 +64,7 @@ void signals()
         std::lock_guard<std::mutex> lk(cv_m);
         i = 1;
     }
-    cv.notify_one();
+    cv.notify_all();
 }
 
 void wait_for_condition(){

@@ -3,7 +3,15 @@
 #include <stdlib.h>
 #include <type_traits>
 
+int is_little_endian(void)
+{
+	union {
+		uint16_t i;
+		char c[2];
+	} bint = { 1 };
 
+	return bint.c[0] == 1;
+}
 
 constexpr bool isBitSet(unsigned long x, unsigned  n){
 	return (x & (1<<n));

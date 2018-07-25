@@ -78,12 +78,12 @@ struct OrderedThreadPool {
 		}
 	}
 
-	template <typename ClosureIn, typename ClosureOut> void post(ClosureIn&& in, ClosureOut&&  out) {
+	template <typename ClosureIn, typename ClosureOut> void post(ClosureIn in, ClosureOut  out) {
 		if (stopped()) {
 			return;
 		}
-		boost::future<void> f = boost::async(*m_pool, in);
-		m_actor.post([f = std::move(f), out = std::forward<ClosureOut>(out)]() {
+		boost::shared_future<void> f = boost::async(*m_pool, in);
+		m_actor.post([f, out]() {
 			try {
 				f.wait();
 				out();
@@ -196,17 +196,3 @@ int main()
 	op.stop();
 
 }
-
-/*
-took 1000 ms
-ss1_in =222222222
-ss2_in =111111111111111
-ss1_out =111111111111111
-ss2_out =222222222
-
-*
-*/
-
-
-
-
