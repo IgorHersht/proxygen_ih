@@ -48,6 +48,21 @@ template< typename T, size_t al, typename ... Args> PTR<T> make(Args&& ... args)
     return PTR<T>();
 }
 
+template <typename T> using Ptr = std::unique_ptr<T, Deleter<T>>;
+template <typename T, size_t al, typename ... Args> Ptr<T> make2(Args&& ... args) {
+    static_assert(isPowerOf2(al), "bad");
+    static_assert(al >= sizeof(void*), "bad");
+
+    Ptr<T> ptr;
+    void *buf = nullptr;
+    posix_memalign(&buf, al, sizeof(T));
+    if(buf){
+      ptr.reset(new(buf) T{std::forward<Args>(args) ...}) ;
+    }
+    return ptr;
+
+}
+
 
 int main()
 {

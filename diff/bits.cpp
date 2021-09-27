@@ -13,6 +13,10 @@ int is_little_endian(void)
 	return bint.c[0] == 1;
 }
 
+constexpr bool equal(unsigned long x, unsigned  n){
+	return !(x^n);
+}
+
 constexpr bool isBitSet(unsigned long x, unsigned  n){
 	return (x & (1<<n));
 }
