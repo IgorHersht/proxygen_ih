@@ -1,0 +1,20 @@
+syntax = "proto3";
+import "types.proto";
+package data_provider.protobuf;
+message RawCollatItem
+{
+  optional OptI i1 = 1;
+  optional OptI i2 = 2;
+  optional OptF f1 = 3;
+  optional OptF f2 = 4;
+  optional OptS s1 = 5 ;
+  optional OptS s2 = 6 ;
+
+  RptI vi1 = 7 ;
+  RptF vf1 = 9 ;
+  RptS vs1 = 10 ;
+  RptS vs2 = 11 ;
+}
+
+
+

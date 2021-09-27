@@ -1,0 +1,20 @@
+https://developers.google.com/protocol-buffers
+https://eli.thegreenplace.net/2011/03/20/boost-asio-with-protocol-buffers-code-sample
+https://groups.google.com/g/protobuf/c/ojpYHqx2l04
+
+https://github.com/protocolbuffers/protobuf.git
+#install 
+sudo apt-get install autoconf automake libtool curl make g++ unzip
+https://github.com/protocolbuffers/protobuf/releases/latest
+downlpad protobuf-all-3.18.0.tar.gz
+see https://github.com/protocolbuffers/protobuf/blob/v3.18.0/src/README.md
+
+cd /home/ihersht/libs/protobuf/protobuf-3.18.0/
+./autogen.sh
+ ./configure --prefix=/home/ihersht/libs/protobuf/protobuf-3.18.0/ --enable-shared=false --enable-silent-rules CXXFLAGS="$CXXFLAGS -std=c++11 -DNDEBUG"
+ make -j 8
+make check
+sudo make install
+sudo ldconfig
+ls
+
