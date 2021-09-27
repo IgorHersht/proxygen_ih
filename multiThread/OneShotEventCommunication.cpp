@@ -18,7 +18,6 @@ int main()
   std::thread th(doSomething);
 
   p.get_future().wait();
-  doSomething() //is done here.
   th.join();
   return 0;
 }

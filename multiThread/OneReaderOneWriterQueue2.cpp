@@ -1,4 +1,5 @@
 #include <atomic>
+#include <array>
 
 template<typename T, std::size_t Size>
 struct OneReaderOneWriterQueue {
@@ -31,9 +32,9 @@ private:
   {
     return (current + 1)%Size;
   }
-  T _ring[Size]{};
-  std::atomic<std::size_t> _head{};;
-  std::atomic<std::size_t> _tail{};
+ alignas(std::hardware_destructive_interference_size) std::array<T, Size> _ring{};
+ alignas(std::hardware_destructive_interference_size) std::atomic<std::size_t> _head{};
+ alignas(std::hardware_destructive_interference_size)std::atomic<std::size_t> _tail{};
 };
 
 //// test

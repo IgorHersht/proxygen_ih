@@ -1,59 +1,96 @@
-
-#include <string>
-#include <vector>
-#include <iostream>
-#include <fstream>
-#include <algorithm>
-#include  <memory>
-#include  <cstdio>
+#include <thread>
+#include <stack>
 #include <mutex>
-#include <boost/thread/shared_mutex.hpp>
-#include <thread>
-#include <thread>
+#include <memory>
+#include <atomic>
+#include <vector>
+#include <deque>
+#include <list>
+#include <set>
+#include <map>
+#include <string>
+#include <algorithm>
+#include <iterator>
+#include <functional>
+#include <numeric>
+#include <iostream>
+#include <vector>
+#include <list>
+#include <deque>
+#include <algorithm>
+#include <typeinfo>
+#include <algorithm>
+#include <iterator>
+#include <memory>
+#include <fstream>
+#include <vector>
 
-struct th_string{
+#include <boost/noncopyable.hpp>
+#include <shared_mutex>
 
-  th_string(){}
-  th_string(const std::string &str):m_str(str){}
-  th_string(std::string &&str):m_str(std::move(str)){}
-  th_string& operator = (th_string &&str) = delete;
-  th_string& operator =(const th_string &str) = delete;
-
+struct thread_guard{
+    thread_guard(std::thread &t):m_t(t){
+    }
+    ~thread_guard(){
+        if(m_t.joinable()) {
+            m_t.join();
+        }
+    }
 private:
-  boost::shared_mutex m_mutex;
-  std::string m_str;
+    thread_guard& operator = (const thread_guard &) = delete;
+    thread_guard(const thread_guard &) = delete;
+    std::thread &m_t;
+
 };
 
-template <typename T> struct th_map{
+template <typename KeyT, typename ValueT> class smap{
+    using map = std::map<KeyT,ValueT>;
+public:
+    using value_type =  typename map::value_type;
 
-  T find (const std::string key) const {
-     boost::shared_lock<boost::shared_mutex> lk(m_mutex);
-     auto pos = m_map.find(key);
-     return (pos != m_map.end()) ?  pos->second : T();
-  }
+    bool insert(value_type &&v){
+        std::lock_guard lk(m_mutex);
+        return (m_map.insert(std::move(v))).second;
+    }
 
-  bool insert (const std::string key, T value)  {
-     std::lock_guard<boost::shared_mutex> lk(m_mutex);
-     return (m_map.insert( typename std::map<std::string,T>::value_type(key,value) )).second;
-  }
+    std::pair<ValueT, bool> find (const KeyT &k) const {
+        std::shared_lock lk(m_mutex);
+        auto pos = m_map.find(k);
+        return (pos != m_map.end()) ? std::make_pair(pos->second, true) : std::make_pair(ValueT(), false) ;
+    }
 
 private:
-  mutable boost::shared_mutex       m_mutex;
-  std::map<std::string, T >  m_map;
+    mutable std::shared_mutex m_mutex;
+    map                 m_map;
 };
 
+using map =smap<int,int>;
+std::mutex IO_mutex;
 
+inline void find(const map &m ){
 
-
-int main()
-{
-
-  std::string s1("xxxx");
-  th_map<int> m;
-  m.insert("xxx", 1);  m.insert("cx", 6);  m.insert("x", 8);
-  auto v = m.find("cx");
-
- 
-  return 0;
+    for (int i = 0; i < 1000; ++i) {
+        auto out = m.find (i);
+        std::lock_guard<std::mutex> lk(IO_mutex);
+        std::cout << i <<";"<<out.second <<";"<< out.first <<std::endl;
+    }
 }
 
+
+inline void insert ( map &m ){
+
+    for (int i = 0; i < 1000; ++i) {
+        m.insert(std::move(map::value_type(i/2 , i)) );
+    }
+
+}
+
+
+int main(){
+    map m;
+    std::thread t1(insert, std::ref(m) );   thread_guard g1 (t1);
+    std::thread t2(find, std::ref(m) );     thread_guard g2(t2);
+    std::thread t3(find, std::ref(m) );     thread_guard g3(t3);
+
+    return 0;
+}
