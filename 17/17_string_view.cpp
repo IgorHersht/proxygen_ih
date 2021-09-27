@@ -2,6 +2,11 @@
 #include <string_view>
 #include <utility>
 
+constexpr std::array ar{
+        std::string_view("abc"),
+        std::string_view("efg")
+};
+
 
 int main()
 {
@@ -11,6 +16,10 @@ int main()
     if(trim_pos != data.npos)
         data.remove_suffix(data.size() - trim_pos);
     std::cout << data << std::endl;
+
+	for(const auto& s: ar){
+        std::cout << s << std::endl;
+    }
 
 
     return 0;
