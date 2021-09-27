@@ -1,2 +1,0 @@
-https://www.softwarecollections.org/en/scls/rhscl/devtoolset-6/
-https://ed.braaten.net/blog/2014-05-28-devtools-for-centos/
