@@ -1,0 +1,8 @@
+/snap/clion/164/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_DEPENDS_USE_COMPILER=FALSE -G "CodeBlocks - Unix Makefiles" /home/ihersht/work/colateral/data_provider/test/test_server
+CMake Error at CMakeLists.txt:37 (target_link_libraries):
+  Cannot specify link libraries for target "ThrdPerCntxtServer" which is not built by
+  this project.
+
+
+-- Configuring incomplete, errors occurred!
+See also "/home/ihersht/work/colateral/data_provider/test/test_server/cmake-build-debug/CMakeFiles/CMakeOutput.log".

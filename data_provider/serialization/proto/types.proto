@@ -1,0 +1,14 @@
+syntax = "proto3";
+//option cc_enable_arenas = true; // possible optimization - would need to rewrite some code
+
+package data_provider.protobuf;
+
+import "google/protobuf/struct.proto";
+
+message OptI    { oneof kind{ google.protobuf.NullValue null = 1; int32   value = 2 ; } }
+message OptF    { oneof kind{ google.protobuf.NullValue null = 1; float   value = 2; } }
+message OptS    { oneof kind{ google.protobuf.NullValue null = 1; string  value = 2; } }
+
+message RptI { repeated OptI value = 1; }
+message RptF { repeated OptF value = 1; }
+message RptS { repeated OptS value = 1; }

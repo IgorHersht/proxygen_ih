@@ -1,0 +1,14 @@
+{
+  "net": {
+    "server": {
+      "address": "localhost",
+      "port": 8080,
+      "io_threads": 4,
+      "cpu_threads": 20,
+      "request_handler_threads": 4
+    }
+
+  }
+
+
+}
