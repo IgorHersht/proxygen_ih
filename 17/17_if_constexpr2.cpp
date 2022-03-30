@@ -1,4 +1,4 @@
-#include <type_traits>
+T#include <type_traits>
 #include <iostream>
 template<class> inline constexpr bool always_false_v = false;
 template<typename T> void foo(T t) {
@@ -8,7 +8,6 @@ template<typename T> void foo(T t) {
     } else if constexpr(std::is_floating_point_v<T>) {
         std::cout << "float" << std::endl;
     } else  {
-       // static_assert( sizeof(T) == 0, "foo cannot be instatoeted with this type");
 		static_assert( always_false_v<T>, "foo cannot be instatoeted with this type");
     }
 }
