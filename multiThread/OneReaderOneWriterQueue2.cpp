@@ -1,65 +1,141 @@
+#include <vector>
 #include <atomic>
-#include <array>
+#include <boost/lockfree/spsc_queue.hpp>
 
-template<typename T, std::size_t Size>
-struct OneReaderOneWriterQueue {
-  bool push(const T & value)
-  {
-    std::size_t h = _head;
-    std::size_t t = _tail;
-    std::size_t nh = next(h);
-    if( nh == t){
-      return false;
-    }
-    _ring[nh] = value;
-    _head = nh;
-    return true;
-  }
 
-  bool pop(T & value)
-  {
-    std::size_t t = _tail;
-    std::size_t h = _head;
-    if( h == t){
-      return false;
+template<typename T, size_t producerCapacity> class mpsc_queue {
+    using ProducerQueue = boost::lockfree::spsc_queue<int, boost::lockfree::capacity<producerCapacity> > ;// ProducerQueue
+    using ProducerQueues = std::vector<ProducerQueue>;
+public:
+    using ConsumerBuffer = std::vector<T>;
+    explicit mpsc_queue(size_t produsersNum):
+            _producerQueues(produsersNum){
+        _consumerBuf.reserve(produsersNum * producerCapacity );
     }
-    value = t;
-    _tail = next(t);
-    return true;
-  }
+
+    template<typename ConstIterator> bool  produce(ConstIterator begin, ConstIterator end,  size_t  produserNum)
+    {
+        while((!_stop) && (begin != end)){
+            begin = _producerQueues[produserNum].push(begin, end);
+        }
+        if(_stop){
+            ++_donePorodicers;
+        }
+        return _stop;
+    }
+
+    template<typename F> void consume(F&& f)
+    {
+
+        while(true)
+        {
+            for(ProducerQueue& queue: _producerQueues )
+            {
+                consume(queue) ;
+            }
+            std::forward<F>(f)(std::move(_consumerBuf));
+            _consumerBufOffset = 0;
+            if(_stop && (_donePorodicers == _producerQueues.size())){
+                break;
+            }
+        }
+    }
+
+    void stop(){
+        _stop = true;
+    }
+    bool isStopped() const{
+        return _stop;
+    }
+
 private:
-  std::size_t next(std::size_t current)
-  {
-    return (current + 1)%Size;
-  }
- alignas(std::hardware_destructive_interference_size) std::array<T, Size> _ring{};
- alignas(std::hardware_destructive_interference_size) std::atomic<std::size_t> _head{};
- alignas(std::hardware_destructive_interference_size)std::atomic<std::size_t> _tail{};
+    void consume(ProducerQueue& queue)
+    {
+         std::array<T,producerCapacity> buf;
+        while(true)
+        {
+            size_t offset = queue.pop(&(*buf.begin()), buf.size());
+            if(!offset){
+                break;
+            }
+
+            _consumerBuf.insert(_consumerBuf.begin() + _consumerBufOffset , buf.begin(),  buf.begin() + offset );
+            _consumerBufOffset += offset;
+        }
+    }
+
+private:
+    ProducerQueues          _producerQueues;
+    ConsumerBuffer          _consumerBuf;
+    size_t                  _consumerBufOffset{0};
+    std::atomic<bool>       _stop{false};
+    std::atomic<size_t>     _donePorodicers{0};
 };
-
-//// test
+//test
 #include <iostream>
-OneReaderOneWriterQueue<int,5> q;
-void push(){
-  for( int i = 0; i < 10; ++i){
-    q.push(i);
-  }
-}
+#include <thread>
+#include <future>
+#include <chrono>
 
-void pop(){
-  for( int i = 1; i < 10; ++i){
-    int j =0;
-    q.pop(j);
-    std::cout << j << std::endl;
-  }
-}
+constexpr size_t producerCapacity =  1024;
+constexpr size_t produsersNum =  16;
+using Queue = mpsc_queue<int, producerCapacity>;
+Queue queue(produsersNum);
 
-int main()
+
+void produceOne(size_t prNum)
 {
-  push();
-  pop();
-  return 0;
+        bool done = false;
+        while(!done)
+        {
+            // emulate load
+            std::vector<size_t>  v;
+            for( size_t i = 1; i < producerCapacity/2; ++i){
+                v.emplace_back(i);
+            }
+            done = queue.produce(v.cbegin(), v.cend(), prNum  );
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
 }
 
+void f(Queue::ConsumerBuffer buf){
+    std::cout<< "receved size="<< buf.size() << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50 ));
+    buf.clear();
+}
+void consume()
+{
+        queue.consume(f);
+}
+
+int main(){
+    std::vector<std::future<void>> fs;
+    for(size_t i = 0; i <produsersNum; ++i){
+        fs.emplace_back(std::async(std::launch::async,[i]{
+                produceOne(i);
+        }));
+    }
+    std::future<void> consumer = std::async(std::launch::async,consume);
+
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    queue.stop();
+
+
+  try{
+      for(size_t i = 0; i <produsersNum; ++i){
+          fs[i].wait();
+      }
+  }catch(...){
+    int i =1;
+  }
+    try {
+        consumer.wait();
+    }catch(...){
+        int i =1;
+    }
+
+    int i =1;
+    return 0;
+}
 
 
