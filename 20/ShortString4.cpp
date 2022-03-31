@@ -44,8 +44,10 @@ template< typename T = char> struct ShortString {
     }
 
     constexpr explicit ShortString(std::string_view value) {
-        if (value.size() > Size) [[unlikely]] {
-            exit(1);
+        if (!std::is_constant_evaluated()) {
+            if (value.size() > Size) [[unlikely]] {
+                exit(1);
+            }
         }
         for (std::size_t i = 0; i < value.size(); i++) {
             _value[i] = value[i];
@@ -186,7 +188,15 @@ int strTest3(const char* val) {
 
 int main(int argc, char* argv[])
 {
+    //compile errors
+    // constexpr ShortString<uint32_t> rv("12345");
+    //constexpr ShortString<uint32_t> rv(std::string_view "12345");
 
+    //invalid runtime
+    assert(ShortString<uint32_t>("1234") != ShortString<uint32_t>("12345"));
+    assert(ShortString<uint32_t>("12345") == ShortString<uint32_t>("12346"));
+
+    //switch tests
     assert(chatTest1('a'));
     assert(!chatTest1('b'));
 
