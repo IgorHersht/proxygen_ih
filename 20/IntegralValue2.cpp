@@ -7,6 +7,12 @@
 #ifndef uint128_t
 # define uint128_t  unsigned __int128
 #endif
+// TODO increase max size of input string
+//In current implementation we assume that every char in input string corresponds one byte in a integral value.
+// It means max size of the input string is 16 ( sizeof(uint128_t) ).
+//But if we can limit sizes of chars in input string we can try to compress.
+//For example, if assume that input is limited to ASCII chars ( [0,127]  )
+//we can try to fit two chars in one byte => max size of the input string is 32.
 
 template< typename T, uint16_t begin, uint16_t end, bool isShortInputOk = true,  bool throwOnInvalid = true > class IntegralValueT {
     static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
@@ -53,7 +59,7 @@ private:
         if (std::is_constant_evaluated()) {
             std::array<char, Size> arValue { };
             for (size_t p = 0; p < size; ++p) {
-                arValue[p] = value[p] - begin;
+                arValue[p] = value[size - p -1] - begin;
             }
             for (size_t p = 0; p < size; ++p) {
                 const int v = arValue[p] ;
@@ -69,7 +75,7 @@ private:
             }
 
             for (size_t p = 0; p < size; ++p) {
-                const int v =value[p ] - begin;
+                const int v =value[ size - p  -1 ] - begin;
                 _value += v * Pows._values[p];
             }
         }
@@ -81,7 +87,7 @@ private:
 };
 
 // This is  optimization (based on bitwise operations)  for begin = 0 and end = 256 and isShortInputOk = true, and bool throwOnInvalid = true
-template< typename T> class IntegralValueT<T, 0, 256, true > {
+template< typename T> class IntegralValueT<T, 0, 256, true, true> {
     static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
     constexpr static  size_t Size = sizeof(T);
     constexpr static std::array byteShifts{ 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120 };
@@ -107,14 +113,14 @@ private:
             }
         }
         for (size_t p = 0; p < size; ++p) {
-            _value |= (T(value[p]) << byteShifts[p]);
+            _value |= (T(value[size - p -1 ]) << byteShifts[p]);
         }
     }
 private:
     T _value{ };
 };
 
-template< typename T> using IntegralValue = IntegralValueT<T, 0, 256, true>;
+template< typename T> using IntegralValue = IntegralValueT<T, 0, 256, true, true>;
 
 
 /// test
@@ -213,7 +219,7 @@ void test0(){
 void test1(){
     // digits test
     uint32_t v4_d1_r = IntegralValueT<uint32_t, '0', ':'>("1234");
-    assert( (IntegralValueT<uint32_t, '0', ':'>("1234") == 4321)); // should be in reverse order
+    assert( (IntegralValueT<uint32_t, '0', ':'>("1234") == 1234));
     constexpr uint32_t v4_d1_b1_c = IntegralValueT<uint32_t, '0', ':'>("1234");
     assert( v4_d1_r == v4_d1_b1_c);
 
@@ -221,7 +227,13 @@ void test1(){
     //constexpr uint32_t v4_d1_b1_c_b = IntegralValueT<uint32_t, '0', ':'>("12345"); // compile error
 
     uint32_t iv = IntegralValue<uint32_t>("1234");
-    uint32_t iv2 = IntegralValueT<uint32_t, 0, 256>("1234");
+    uint32_t iv2 = IntegralValueT<uint32_t, 0, 256, false, false>("1234");
+    constexpr uint32_t iv_c = IntegralValue<uint32_t>("1234");
+    constexpr uint32_t iv2_c = IntegralValueT<uint32_t, 0, 256, false, false>("1234");
+    assert( iv == iv2);
+    assert( iv_c == iv2_c);
+    assert( iv == iv_c);
+
 
 
     int i =1;
