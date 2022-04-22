@@ -90,7 +90,7 @@ private:
 template< typename T> class IntegralValueT<T, 0, 256, true, true> {
     static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
     constexpr static  size_t Size = sizeof(T);
-    constexpr static std::array byteShifts{ 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120 };
+    constexpr static std::array shifts{0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120 };
 public:
     IntegralValueT() = delete;
     constexpr IntegralValueT(std::string_view  value) {
@@ -108,19 +108,56 @@ private:
     constexpr void init(std::string_view  value) {
         const size_t size = value.size();
         if (!std::is_constant_evaluated()) {
-            if (size > Size) [[unlikely]] {
+            if (!isValid(value)) [[unlikely]] {
                 throw std::runtime_error("Invalid input string");
             }
         }
         for (size_t p = 0; p < size; ++p) {
-            _value |= (T(value[size - p -1 ]) << byteShifts[p]);
+            _value |= (T(value[size - p -1 ]) << shifts[p]);
         }
     }
 private:
     T _value{ };
 };
 
-template< typename T> using IntegralValue = IntegralValueT<T, 0, 256, true, true>;
+template< typename T> using ByteIntegralValue = IntegralValueT<T, 0, 256, true, true>;
+
+// This is  optimization (based on bitwise operations)  for begin = 0 and end = 128 and isShortInputOk = true, and bool throwOnInvalid = true
+template< typename T> class IntegralValueT<T, 0, 128, true, true> {
+    static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
+    constexpr static  size_t Size = sizeof(T);
+    constexpr static std::array shifts{0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72,76,80,84,88,92,96,100,104,108,112, 116,120,124 };
+public:
+    IntegralValueT() = delete;
+    constexpr IntegralValueT(std::string_view  value) {
+        init(value);
+    }
+
+    constexpr operator T () const {
+        return _value;
+    }
+
+    constexpr static bool isValid(std::string_view  value) {
+        return (value.size()  <= Size * 2) ? true : false;
+    }
+private:
+    constexpr void init(std::string_view  value) {
+        const size_t size = value.size();
+        if (!std::is_constant_evaluated()) {
+            if (!isValid(value)) [[unlikely]] {
+                throw std::runtime_error("Invalid input string");
+            }
+        }
+        for (size_t p = 0; p < size; ++p) {
+            _value |= (T(value[ size - p - 1  ]) << shifts[p]);
+        }
+    }
+private:
+    T _value{ };
+};
+
+template< typename T> using AsciiIntegralValue = IntegralValueT<T, 0, 128, true, true>;
+
 
 
 /// test
@@ -129,10 +166,12 @@ template< typename T> using IntegralValue = IntegralValueT<T, 0, 256, true, true
 #include <iostream>
 void test0();
 void test1();
+void test2();
 
 int main() {
     test0();
     test1();
+    test2();
     return 0;
 }
 // test0
@@ -142,11 +181,11 @@ constexpr std::string_view  ar31("ax");
 constexpr std::string_view  ar32{ "abcd" };
 int strTest1(std::string_view val) {
 
-    switch (IntegralValue<uint32_t>(val)) {
-        case IntegralValue<uint32_t>(ar31): {
+    switch (ByteIntegralValue<uint32_t>(val)) {
+        case ByteIntegralValue<uint32_t>(ar31): {
             return 1;
         }
-        case IntegralValue<uint32_t>(ar32): {
+        case ByteIntegralValue<uint32_t>(ar32): {
             return 2;
         }
         default: {
@@ -159,11 +198,11 @@ int strTest1(std::string_view val) {
 constexpr std::string_view  ar71{ "abc" };
 constexpr std::string_view  ar72{ "abbcd" };
 int strTest2(std::string_view val) {
-    switch (IntegralValue<uint64_t>(val)) {
-        case IntegralValue<uint64_t>(ar71): {
+    switch (ByteIntegralValue<uint64_t>(val)) {
+        case ByteIntegralValue<uint64_t>(ar71): {
             return 1;
         }
-        case IntegralValue<uint64_t>(ar72): {
+        case ByteIntegralValue<uint64_t>(ar72): {
             return 2;
         }
         default: {
@@ -176,11 +215,11 @@ int strTest2(std::string_view val) {
 constexpr const char* ar151{ "0123456789abcde" };
 constexpr std::string_view  ar152{ "0123456789abcdef" };
 int strTest3(const char* val) {
-    switch (IntegralValue<uint128_t>(val)) {
-        case IntegralValue<uint128_t>(ar151): {
+    switch (ByteIntegralValue<uint128_t>(val)) {
+        case ByteIntegralValue<uint128_t>(ar151): {
             return 1;
         }
-        case IntegralValue<uint128_t>(ar152): {
+        case ByteIntegralValue<uint128_t>(ar152): {
             return 2;
         }
         default: {
@@ -226,17 +265,47 @@ void test1(){
     //uint32_t v4_d1_r_b = IntegralValueT<uint32_t, '0', ':'>("12343"); // exception
     //constexpr uint32_t v4_d1_b1_c_b = IntegralValueT<uint32_t, '0', ':'>("12345"); // compile error
 
-    uint32_t iv = IntegralValue<uint32_t>("1234");
+    uint32_t iv = ByteIntegralValue<uint32_t>("1234");
     uint32_t iv2 = IntegralValueT<uint32_t, 0, 256, false, false>("1234");
-    constexpr uint32_t iv_c = IntegralValue<uint32_t>("1234");
+    constexpr uint32_t iv_c = ByteIntegralValue<uint32_t>("1234");
     constexpr uint32_t iv2_c = IntegralValueT<uint32_t, 0, 256, false, false>("1234");
     assert( iv == iv2);
     assert( iv_c == iv2_c);
     assert( iv == iv_c);
 
 
+    int i =1;
+}
+
+void test2(){
+    const char* in_8_r = "12345678";
+    constexpr const char* in_8_c = "12345678";
+    uint32_t v4_d1_r = AsciiIntegralValue<uint32_t>(in_8_r);
+    constexpr uint32_t v4_d1_c = AsciiIntegralValue<uint32_t>(in_8_c);
+    assert( v4_d1_r == v4_d1_c);
+    //constexpr uint32_t v4_d1_b_c = AsciiIntegralValue<uint32_t>("123456789"); // compile error
+    try{
+        uint32_t v4_d1_b_r = AsciiIntegralValue<uint32_t>("123456789"); // exception
+    }catch(...){
+        int i =1;
+    }
+
+    const char* in_16_r = "1234567812345678";
+    constexpr const char* in_16_c = "1234567812345678";
+    uint64_t  v8_d1_r = AsciiIntegralValue<uint64_t>(in_16_r);
+    constexpr uint64_t  v8_d1_c = AsciiIntegralValue<uint64_t>(in_16_c);
+    assert( v8_d1_r == v8_d1_c);
+
+    constexpr char m{127};
+    const char* in_32_r = "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm";
+    constexpr const char* in_32_c = "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm";
+    uint128_t  v16_d1_r = AsciiIntegralValue<uint128_t>(in_32_r);
+    constexpr uint128_t  v16_d1_c = AsciiIntegralValue<uint128_t>(in_32_c);
+    assert( v8_d1_r == v8_d1_c);
+
 
     int i =1;
+
 }
 
 
