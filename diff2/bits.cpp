@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <type_traits>
 
-int is_little_endian(void)
+constexpr bool is_little_endian(void)
 {
 	union {
 		uint16_t i;
