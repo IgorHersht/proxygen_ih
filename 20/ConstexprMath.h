@@ -17,7 +17,6 @@
 template < auto Base, std::size_t Exp> struct ConstevalIntPow {
     using T = decltype(Base);
     static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned integral type");
-    static_assert((std::numeric_limits<T>::max() / Base ) >= ConstevalIntPow<Base, Exp - 1>::_value, "Overflow in ConstevalIntPow ");
     static constexpr bool _isValid = ((std::numeric_limits<T>::max() / Base ) >= ConstevalIntPow<Base, Exp - 1>::_value);
     consteval operator T () const{
         return  _value;
@@ -53,5 +52,14 @@ template <auto Base, std::size_t Size> struct ConstevalIntPows {
     }
     std::array<T, Size> _values {};
 };
+
+template <auto Base, std::size_t Exp> consteval  std::size_t maxPow(){
+      if constexpr(ConstevalIntPow<Base, Exp>::_isValid ){
+          uint128_t v = ConstevalIntPow<Base, Exp>::_value;
+          return maxPow<Base, Exp + 1> ();
+      }else{
+          return Exp;
+      }
+}
 #endif //TEST1_CONSTEXPRMATH_H
 
