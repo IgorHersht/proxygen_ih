@@ -2,7 +2,7 @@
 #include <bitset>
 #include<type_traits>
 #include <assert.h>
-#include<iostream>
+#include<string>
 #include "ConstexprMath.h"
 
 #ifndef uint128_t
@@ -43,6 +43,27 @@ template< typename T, size_t begin, size_t end> struct IntegralValueT {
 
     constexpr  bool isValid(std::string_view  value) {
         return (_value != _invalidValue);
+    }
+
+// for test on printable ascii
+    std::string toString() const{
+        std::string out;
+        constexpr size_t size = sizeof(T) * 8;
+        std::bitset<size> in(_value);
+        std::bitset<8> bitsOut;
+
+        for (size_t p = 0; p < size; ++p) {
+            size_t index = p%OneElementBits;
+            if(index == 0){
+                const unsigned long ch = bitsOut.to_ulong();
+                if((ch > 31) && (ch < 127)) {
+                    out += char(ch);
+                }
+                bitsOut.reset();
+            }
+            bitsOut[index] = in[p];
+        }
+        return out;
     }
 
 private:
@@ -110,6 +131,10 @@ void testInit(){
     assert((IntegralValueT<uint128_t, 0, 63>::MaxElementNum) == 21);
     std::array shifts63 = IntegralValueT<uint128_t, 0, 63>::shifts;
 
+    const char* s0 = "1234";
+    IntegralValueT<uint128_t, 0, 127> ascii0(s0);
+    std::string s1 = ascii0.toString();
+    assert(s0 == s1);
     int i =1;
 
 }
@@ -198,6 +223,8 @@ void test1(){
     uint32_t v4_d1_r = IntegralValueT<uint32_t, '0', ':'>("1234");
     constexpr uint32_t v4_d1_b1_c = IntegralValueT<uint32_t, '0', ':'>("1234");
     assert( v4_d1_r == v4_d1_b1_c);
+    IntegralValueT<uint32_t, '0', ':'> iv("1234") ;
+    auto s4_d1_r = iv.toString();
 
     uint64_t v8_d1_r = IntegralValueT<uint64_t, '0', ':'>("12345678");
     constexpr uint64_t v8_d1_b1_c = IntegralValueT<uint64_t, '0', ':'>("12345678");
@@ -242,3 +269,4 @@ void test2(){
     int i =1;
 
 }
+
