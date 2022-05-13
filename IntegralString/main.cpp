@@ -53,7 +53,7 @@ private:
             return ;
         }
         for (size_t p = 0; p < size; ++p) {
-            _value |= (T(value[ size - p - 1  ]) << shifts[p]);
+            _value |= (T(value[p]) << shifts[p]);
         }
     }
 private:
@@ -63,8 +63,8 @@ private:
 
 template< typename T> using ByteIntegralValue = IntegralValueT<T, 0, 256>;
 template< typename T> using AsciiIntegralValue = IntegralValueT<T, 0, 128>;
-template< typename T> using AlphaNumericIntegralValue = IntegralValueT<T, 0, 63>;// needs extra constexpr mapping
-template< typename T> using NumericIntegralValue = IntegralValueT<T, size_t('0'), size_t('9') +1 >;
+template< typename T> using AlphaNumericIntegralValue = IntegralValueT<T, 0, 62>;// need extra constexpr mapping
+template< typename T> using NumericIntegralValue = IntegralValueT<T, size_t('0'), size_t('9') +1 >;// need extra constexpr mapping
 
 //test
 
