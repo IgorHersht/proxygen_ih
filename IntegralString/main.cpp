@@ -63,6 +63,8 @@ private:
 
 template< typename T> using ByteIntegralValue = IntegralValueT<T, 0, 256>;
 template< typename T> using AsciiIntegralValue = IntegralValueT<T, 0, 128>;
+template< typename T> using AlphaNumericIntegralValue = IntegralValueT<T, 0, 63>;// needs extra constexpr mapping
+template< typename T> using NumericIntegralValue = IntegralValueT<T, size_t('0'), size_t('9') +1 >;
 
 //test
 
