@@ -1,5 +1,6 @@
 #include <string_view>
 #include <bitset>
+#include <stdexcept>
 #include<type_traits>
 #include <assert.h>
 #include<string>
@@ -41,11 +42,7 @@ template< typename T, size_t begin, size_t end> struct IntegralValueT {
         return _value;
     }
 
-    constexpr  bool isValid(std::string_view  value) {
-        return (_value != _invalidValue);
-    }
-
-// for test on printable ascii
+// printable ascii. Not fast  => for test only
     std::string toString() const{
         std::string out;
         constexpr size_t size = sizeof(T) * 8;
@@ -69,16 +66,17 @@ template< typename T, size_t begin, size_t end> struct IntegralValueT {
 private:
     constexpr void init(std::string_view  value){
         const size_t size = value.size();
-        if(size > MaxElementNum ){
-            _value = _invalidValue;
-            return ;
+        if(!std::is_constant_evaluated()) {
+            if (size > MaxElementNum) [[unlikely]]{
+                throw std::runtime_error("overflow");
+            }
         }
+        // compile error in compile time context if size > MaxElementNum
         for (size_t p = 0; p < size; ++p) {
             _value |= (T(value[p]) << shifts[p]);
         }
     }
 private:
-    static constexpr T _invalidValue {std::numeric_limits<T>::max()};
     T _value{ };
 };
 
@@ -220,8 +218,9 @@ void test0(){
 
 void test1(){
     // digits test
-    uint32_t v4_d1_r = IntegralValueT<uint32_t, '0', ':'>("1234");
-    constexpr uint32_t v4_d1_b1_c = IntegralValueT<uint32_t, '0', ':'>("1234");
+    size_t max32 = IntegralValueT<uint32_t, '0', ':'>::MaxElementNum;// 8
+    uint32_t v4_d1_r = IntegralValueT<uint32_t, '0', ':'>("12345678");
+    constexpr uint32_t v4_d1_b1_c = IntegralValueT<uint32_t, '0', ':'>("12345678");
     assert( v4_d1_r == v4_d1_b1_c);
     IntegralValueT<uint32_t, '0', ':'> iv("1234") ;
     auto s4_d1_r = iv.toString();
@@ -238,12 +237,12 @@ void test1(){
 }
 
 void test2(){
-    const char* in_8_r = "12345678";
-    constexpr const char* in_8_c = "12345678";
+    const char* in_8_r = "1234";
+    constexpr const char* in_8_c = "1234";
     uint32_t v4_d1_r = AsciiIntegralValue<uint32_t>(in_8_r);
     constexpr uint32_t v4_d1_c = AsciiIntegralValue<uint32_t>(in_8_c);
     assert( v4_d1_r == v4_d1_c);
-    //constexpr uint32_t v4_d1_b_c = AsciiIntegralValue<uint32_t>("123456789"); // compile error
+    //constexpr uint32_t v4_d1_b_c = AsciiIntegralValue<uint32_t>("12345"); // compile error
     try{
         uint32_t v4_d1_b_r = AsciiIntegralValue<uint32_t>("123456789"); // exception
     }catch(...){
@@ -251,16 +250,16 @@ void test2(){
     }
 
     constexpr char m{15};
-    const char* in_16_r = "mmmmmmmmmmmmmmmm";// 16 chars
-    constexpr const char* in_16_c = "mmmmmmmmmmmmmmmm";
+    const char* in_16_r = "mmmmmmmmm";
+    constexpr const char* in_16_c = "mmmmmmmmm";
     uint64_t  v8_d1_r = AsciiIntegralValue<uint64_t>(in_16_r);
     constexpr uint64_t  v8_d1_c = AsciiIntegralValue<uint64_t>(in_16_c);
     uint64_t max = std::numeric_limits<uint64_t>::max();
     assert( v8_d1_r == v8_d1_c);
 // in_16_r = 184 467 440 737 095 51613
 // max =     184 467 440 737 095 51615
-    const char* in_32_r = "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm";
-    constexpr const char* in_32_c = "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm";
+    const char* in_32_r = "mmmmmmmmmmmmmmmmmm";
+    constexpr const char* in_32_c = "mmmmmmmmmmmmmmmmmm";
     uint128_t  v16_d1_r = AsciiIntegralValue<uint128_t>(in_32_r);
     constexpr uint128_t  v16_d1_c = AsciiIntegralValue<uint128_t>(in_32_c);
     assert( v8_d1_r == v8_d1_c);
@@ -269,4 +268,3 @@ void test2(){
     int i =1;
 
 }
-
