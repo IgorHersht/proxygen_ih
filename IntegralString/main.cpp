@@ -28,10 +28,11 @@ template< typename T, size_t begin, size_t end> struct IntegralValueT {
                   std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
     static_assert(end > begin);
     static constexpr size_t Base = end - begin;
+    static constexpr std::array<size_t, Base> Range{};
     static constexpr size_t MaxBits = sizeof(T) * 8;
     static constexpr size_t OneElementBits = bitNumber<T, Base - 1>();
     static constexpr size_t MaxElementNum = MaxBits/OneElementBits;
-    static constexpr std::array shifts = ConstevalIntSums<OneElementBits,sizeof(T) * 8>()._values;
+    static constexpr std::array Shifts = ConstevalIntSums<OneElementBits, sizeof(T) * 8>()._values;
 
     IntegralValueT() = delete;
     constexpr IntegralValueT(std::string_view  value) {
@@ -68,12 +69,19 @@ private:
         const size_t size = value.size();
         if(!std::is_constant_evaluated()) {
             if (size > MaxElementNum) [[unlikely]]{
-                throw std::runtime_error("overflow");
+                throw std::runtime_error("Input is too long ");
             }
-        }
-        // compile error in compile time context if size > MaxElementNum
-        for (size_t p = 0; p < size; ++p) {
-            _value |= (T(value[p]) << shifts[p]);
+            for (size_t p = 0; p < size; ++p) {
+                if( (value[p] < begin ) || (value[p]) >= end ){
+                    throw std::runtime_error("Input out of Range");
+                }
+                _value |= (T(value[p]) << Shifts[p]);
+            }
+        } else{
+            for (size_t p = 0; p < size; ++p) {
+                Range[value[p] - begin];// just to have compile error if out of Range
+                _value |= (T(value[p]) << Shifts[p]) ;
+            }
         }
     }
 private:
@@ -82,8 +90,8 @@ private:
 
 template< typename T> using ByteIntegralValue = IntegralValueT<T, 0, 256>;
 template< typename T> using AsciiIntegralValue = IntegralValueT<T, 0, 128>;
-template< typename T> using AlphaNumericIntegralValue = IntegralValueT<T, 0, 62>;// need extra constexpr mapping
-template< typename T> using NumericIntegralValue = IntegralValueT<T, size_t('0'), size_t('9') +1 >;// need extra constexpr mapping
+template< typename T> using AlphaNumericIntegralValue = IntegralValueT<T, 0, 62>;// need extra constexpr mapping for alphaNumeric
+template< typename T> using NumericIntegralValue = IntegralValueT<T, size_t('0'), size_t('9') +1 >;// need extra constexpr mapping for numeric
 
 //test
 
@@ -117,24 +125,42 @@ void testInit(){
     assert((IntegralValueT<uint64_t, 0, 256>::Base) ==256);
     assert((IntegralValueT<uint64_t, 0, 256>::OneElementBits) == 8);
     assert((IntegralValueT<uint64_t, 0, 256>::MaxElementNum) == 8 );
-    std::array shifts256 = IntegralValueT<uint64_t, 0, 256>::shifts;
+    std::array shifts256 = IntegralValueT<uint64_t, 0, 256>::Shifts;
 
     assert((IntegralValueT<uint128_t, 0, 10>::Base) == 10);
     assert((IntegralValueT<uint128_t, 0, 10>::OneElementBits) == 4 );
     assert((IntegralValueT<uint128_t, 0, 10>::MaxElementNum) == 32);
-    std::array shifts128 = IntegralValueT<uint64_t, 0, 128>::shifts;
+    std::array shifts128 = IntegralValueT<uint64_t, 0, 128>::Shifts;
 
     assert((IntegralValueT<uint128_t, 0, 63>::Base) == 63);
     assert((IntegralValueT<uint128_t, 0, 63>::OneElementBits) == 6);
     assert((IntegralValueT<uint128_t, 0, 63>::MaxElementNum) == 21);
-    std::array shifts63 = IntegralValueT<uint128_t, 0, 63>::shifts;
+    std::array shifts63 = IntegralValueT<uint128_t, 0, 63>::Shifts;
 
     const char* s0 = "1234";
     IntegralValueT<uint128_t, 0, 127> ascii0(s0);
     std::string s1 = ascii0.toString();
     assert(s0 == s1);
-    int i =1;
 
+    const char* brin1 = "1233456789";
+    try {
+        uint64_t br1 = IntegralValueT<uint64_t, 0, 256>(brin1); // 'input is too long => exception
+    }catch(...){
+        int i = 1;
+    }
+
+    constexpr const char* bcin1 = "1233456789";
+    //constexpr uint64_t bc1 = IntegralValueT<uint64_t, 0, 256>(bcin1); // 'input is too long => => compile error
+
+    const char* brin2 = "123N";
+    try {
+        uint64_t br2 = IntegralValueT<uint64_t, 0, 63>(brin2); // 'N' out of Range => exception
+    }catch(...){
+        int i = 1;
+    }
+
+    constexpr const char* bcin2 = "123N";
+    //constexpr uint64_t br1 = IntegralValueT<uint64_t, 0, 63>(bcin2); // 'N' out of Range => compile error
 }
 
 // C string and std::string_view
@@ -268,3 +294,4 @@ void test2(){
     int i =1;
 
 }
+
