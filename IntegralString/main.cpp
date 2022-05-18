@@ -23,8 +23,8 @@ template<typename T, size_t Diff>
     }
     return 0;
 }
-
-template< typename T, size_t begin, size_t end, typename TranslationMap = NoTranslationMap> struct IntegralValueT {
+ enum class ErrorPolicy{MaxInvalid, Exception};
+template< typename T, size_t begin, size_t end, typename TranslationMap = NoTranslationMap, ErrorPolicy errorPolicy = ErrorPolicy::MaxInvalid  > struct IntegralValueT {
     static_assert(((std::is_integral_v<T> || std::is_enum_v<T>) && std::is_unsigned_v<T>) ||
                   std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
     static_assert(end > begin);
@@ -34,11 +34,17 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
     static constexpr size_t OneElementBits = bitNumber<T, Base - 1>();
     static constexpr size_t MaxElementNum = MaxBits/OneElementBits;
     static constexpr std::array Shifts = ConstevalIntSums<OneElementBits, sizeof(T) * 8>()._values;
+    static constexpr T InvalidValue {std::numeric_limits<T>::max()};// assume max is invalid
     static constexpr TranslationMap translationMap{};
+
 
     IntegralValueT() = delete;
     constexpr IntegralValueT(std::string_view  value) {
         init(value);
+    }
+
+    constexpr bool isValid() const{
+        return (_value != InvalidValue);
     }
 
     constexpr operator T () const {
@@ -65,7 +71,7 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
             size_t index = p%OneElementBits;
             if((p > 0) && (index == 0) ){
                  size_t ch = reverseElementTranslation(bitsOut.to_ulong());
-                if((ch > 31) && (ch < 127)) {
+                if(  ((ch > 31) && (ch < 127)) ) {
                     out += ch;
                 }
                 bitsOut.reset();
@@ -79,12 +85,22 @@ private:
         const size_t size = value.size();
         if(!std::is_constant_evaluated()) {
             if (size > MaxElementNum) [[unlikely]]{
-                throw std::runtime_error("Input is too long ");// or set to an invalid
+                if(errorPolicy == ErrorPolicy::MaxInvalid){
+                    _value = InvalidValue;
+                    return ;
+                }else{
+                    throw std::runtime_error("Input is too long ");
+                }
             }
             for (size_t p = 0; p < size; ++p) {
                 const char v = elementTranslation(value[ p ]);
                 if( (v < begin ) || (v >= end ) )[[unlikely]]{
-                    throw std::runtime_error("Input out of Range"); // or set to an invalid
+                    if(errorPolicy == ErrorPolicy::MaxInvalid){
+                        _value = InvalidValue;
+                        return ;
+                    }else{
+                        throw std::runtime_error("Input is out of range");
+                    }
                 }
                 _value |= (T(v) << Shifts[p]);
             }
@@ -105,7 +121,7 @@ private:
             return ch;
         }
     }
-    // Not fast  => for test only
+    // printable ascii. Not fast  => for test only
      constexpr char reverseElementTranslation(char ch) const{
         if constexpr (std::is_same_v<TranslationMap, AlphaNumericMap>){
             if(ch == 0){
@@ -118,7 +134,7 @@ private:
                 return ch  - elementTranslation('A') + 'A';
             }
             if(ch == 37 ){
-                return '_';
+                return '-';
             }
             if((ch > 37) && (ch < 64) ){
                 return ch - elementTranslation('a')  + 'a';
@@ -129,38 +145,85 @@ private:
             return ch;
         }
     }
-
 private:
     T _value{ };
 };
 
 template< typename T> using ByteIntegralValue = IntegralValueT<T, 0, 256>;
 template< typename T> using AsciiIntegralValue = IntegralValueT<T, 0, 128>;
-template< typename T> using NumericIntegralValue = IntegralValueT<T, '0', '9' +1 >;// need extra constexpr mapping for alphaNumeric
  using AlphaNumericIntegralValue = IntegralValueT<uint128_t, 0, 64, AlphaNumericMap>;
 
-
 //test
-
 #include <assert.h>
 #include <iostream>
+#include "gen_string.h"
 
 void testAlphaNumeric(){
 
     int max = AlphaNumericIntegralValue::MaxElementNum ;
+    assert(max == 21);
+
     constexpr const char* inc1 = "zzzzzzzzzzzzzzzzzzzzz";
     assert(strlen(inc1) == 21);
     constexpr AlphaNumericIntegralValue vc1(inc1);
     std::string inc1_t = vc1.toString();
     assert(inc1_t == inc1 );
-    assert(AlphaNumericIntegralValue("1000").toString() == "1000");
-    assert(AlphaNumericIntegralValue("001000").toString() == "001000");
+
+    constexpr const char* inc2 = "-zzzzzzzzz-zzzzzzzzz-";
+    assert(strlen(inc2) == 21);
+    constexpr AlphaNumericIntegralValue vc2(inc2);
+    std::string inc2_t = vc2.toString();
+    assert(inc2_t == inc2);
+
+
+    assert(AlphaNumericIntegralValue("1-00").toString() == "1-00");
+    assert(AlphaNumericIntegralValue("0010-0").toString() == "0010-0");
     assert(AlphaNumericIntegralValue("").toString() == "");
 
     //zeroes at the beginning and end are significant
     assert(AlphaNumericIntegralValue("1000")  != AlphaNumericIntegralValue("100"));
     assert(AlphaNumericIntegralValue("0xxx")  != AlphaNumericIntegralValue("xxx"));
     assert(AlphaNumericIntegralValue("x0")  != AlphaNumericIntegralValue("x"));
+
+    // test on 1,000,000 random strings
+    gen_strings(20);
+    for(const std::string& s1: inputs){
+      AlphaNumericIntegralValue v((s1.c_str()));
+        std::string s2 = v.toString();
+        assert(s1 == s2);
+        if(s1.find('-') != std::string::npos){
+            int i =1;
+        }
+    }
+    gen_strings(17);
+    for(const std::string& s1: inputs){
+        std::string s2 = AlphaNumericIntegralValue(s1.c_str()).toString();
+        assert(s1 == s2);
+    }
+    gen_strings(7);
+    for(const std::string& s1: inputs){
+        std::string s2 = AlphaNumericIntegralValue(s1.c_str()).toString();
+        assert(s1 == s2);
+    }
+
+    // negative test
+    {
+        constexpr const char* inc1 = "0000000000000000000000";// too long
+        assert(strlen(inc1) == 22);
+        //constexpr AlphaNumericIntegralValue vc1(inc1); // compile error
+        constexpr const char* inc2 = "012345$7890123456789";// wrong char $
+        assert(strlen(inc2) == 20);
+        //constexpr AlphaNumericIntegralValue vc2(inc2); // compile error
+
+        const char* inr1 = "0000000000000000000000";// too long
+        assert(strlen(inr1) == 22);
+        assert( !AlphaNumericIntegralValue(inr1).isValid()); // invalid in runtime
+        const char* inr2 = "012345$7890123456789";// wrong char $
+        assert(strlen(inr2) == 20);
+        assert( !AlphaNumericIntegralValue(inr2).isValid()); // invalid in runtime
+        // all invalids are equal
+        assert(AlphaNumericIntegralValue(inr1) == AlphaNumericIntegralValue(inr2));
+    }
 
 }
 

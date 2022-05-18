@@ -100,7 +100,7 @@ struct AlphaNumericMap{
                 _map[p]  = p - '0' + 1;
             }else if((p >= 'A') && (p <= 'Z')){
                 _map[p]  = p - 'A' + 11 ;
-            }else if(p == '_'){
+            }else if(p == '-'){
                 _map[p] = 37;
             }else if((p >= 'a') && (p <= 'z')){
              _map[p]  = p - 'a' + 38;
