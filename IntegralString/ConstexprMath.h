@@ -89,6 +89,30 @@ template <auto Base, std::size_t Max> struct ConstevalIntSums {
     std::array<T, Size> _values { };
 };
 
+struct NoTranslationMap{};
+struct AlphaNumericMap{
+    constexpr static  size_t Size = 128;
+    constexpr static  size_t InvalidValue = 128;
+    constexpr AlphaNumericMap(){
+        size_t size = 0;
+        for(size_t p = 0; p < Size; ++p){
+            if( (p >= '0') && (p <= '9') ){
+                _map[p]  = p - '0' + 1;
+            }else if((p >= 'A') && (p <= 'Z')){
+                _map[p]  = p - 'A' + 11 ;
+            }else if(p == '_'){
+                _map[p] = 37;
+            }else if((p >= 'a') && (p <= 'z')){
+             _map[p]  = p - 'a' + 38;
+            }else{
+                _map[p] = InvalidValue;
+            }
+        }
+
+    }
+
+    std::array<size_t , Size> _map{};
+};
 
 
 

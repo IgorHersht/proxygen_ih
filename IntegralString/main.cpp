@@ -4,6 +4,7 @@
 #include<type_traits>
 #include <assert.h>
 #include<string>
+#include<cstring>
 #include "ConstexprMath.h"
 
 #ifndef uint128_t
@@ -23,7 +24,7 @@ template<typename T, size_t Diff>
     return 0;
 }
 
-template< typename T, size_t begin, size_t end> struct IntegralValueT {
+template< typename T, size_t begin, size_t end, typename TranslationMap = NoTranslationMap> struct IntegralValueT {
     static_assert(((std::is_integral_v<T> || std::is_enum_v<T>) && std::is_unsigned_v<T>) ||
                   std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
     static_assert(end > begin);
@@ -33,6 +34,7 @@ template< typename T, size_t begin, size_t end> struct IntegralValueT {
     static constexpr size_t OneElementBits = bitNumber<T, Base - 1>();
     static constexpr size_t MaxElementNum = MaxBits/OneElementBits;
     static constexpr std::array Shifts = ConstevalIntSums<OneElementBits, sizeof(T) * 8>()._values;
+    static constexpr TranslationMap translationMap{};
 
     IntegralValueT() = delete;
     constexpr IntegralValueT(std::string_view  value) {
@@ -47,15 +49,24 @@ template< typename T, size_t begin, size_t end> struct IntegralValueT {
     std::string toString() const{
         std::string out;
         constexpr size_t size = sizeof(T) * 8;
-        std::bitset<size> in(_value);
         std::bitset<8> bitsOut;
+        std::bitset<size> in;
+        if(size <= 64){
+            in |= std::bitset<size>(_value);
+        }else if( size == 128){//uint128_t
+            uint64_t v1{}; uint64_t v2{};
+            memcpy(&v1, &_value, 8);
+            memcpy(&v2, (const char*)&_value + 8, 8);
+            in |= std::bitset<size>(v1);
+            in |= (std::bitset<size>(v2) <<64);
+        }
 
         for (size_t p = 0; p < size; ++p) {
             size_t index = p%OneElementBits;
-            if(index == 0){
-                const unsigned long ch = bitsOut.to_ulong();
+            if((p > 0) && (index == 0) ){
+                 size_t ch = reverseElementTranslation(bitsOut.to_ulong());
                 if((ch > 31) && (ch < 127)) {
-                    out += char(ch);
+                    out += ch;
                 }
                 bitsOut.reset();
             }
@@ -63,40 +74,95 @@ template< typename T, size_t begin, size_t end> struct IntegralValueT {
         }
         return out;
     }
-
 private:
     constexpr void init(std::string_view  value){
         const size_t size = value.size();
         if(!std::is_constant_evaluated()) {
             if (size > MaxElementNum) [[unlikely]]{
-                throw std::runtime_error("Input is too long ");
+                throw std::runtime_error("Input is too long ");// or set to an invalid
             }
             for (size_t p = 0; p < size; ++p) {
-                if( (value[p] < begin ) || (value[p]) >= end ){
-                    throw std::runtime_error("Input out of Range");
+                const char v = elementTranslation(value[ p ]);
+                if( (v < begin ) || (v >= end ) )[[unlikely]]{
+                    throw std::runtime_error("Input out of Range"); // or set to an invalid
                 }
-                _value |= (T(value[p]) << Shifts[p]);
+                _value |= (T(v) << Shifts[p]);
             }
         } else{
             for (size_t p = 0; p < size; ++p) {
-                Range[value[p] - begin];// just to have compile error if out of Range
-                _value |= (T(value[p]) << Shifts[p]) ;
+                const char v = elementTranslation(value[ p ]);
+                Range[v - begin];// just to have compile error if out of Range
+                _value |= (T(v) << Shifts[p]) ;
             }
         }
     }
+
+    constexpr char elementTranslation(char ch) const{
+        if constexpr(std::is_same_v<TranslationMap, AlphaNumericMap>){
+            size_t tmp = translationMap._map[size_t(ch)];
+            return translationMap._map[ch];
+        }else{
+            return ch;
+        }
+    }
+    // Not fast  => for test only
+     constexpr char reverseElementTranslation(char ch) const{
+        if constexpr (std::is_same_v<TranslationMap, AlphaNumericMap>){
+            if(ch == 0){
+                return 0;
+            }
+            if((ch > 0) && ch <= 10){
+                return ch   - elementTranslation('0') + '0';
+            }
+            if((ch > 10) && (ch < 37) ){
+                return ch  - elementTranslation('A') + 'A';
+            }
+            if(ch == 37 ){
+                return '_';
+            }
+            if((ch > 37) && (ch < 64) ){
+                return ch - elementTranslation('a')  + 'a';
+            }
+            throw std::runtime_error("Input out of Range");
+
+        }else{
+            return ch;
+        }
+    }
+
 private:
     T _value{ };
 };
 
 template< typename T> using ByteIntegralValue = IntegralValueT<T, 0, 256>;
 template< typename T> using AsciiIntegralValue = IntegralValueT<T, 0, 128>;
-template< typename T> using AlphaNumericIntegralValue = IntegralValueT<T, 0, 62>;// need extra constexpr mapping for alphaNumeric
-template< typename T> using NumericIntegralValue = IntegralValueT<T, size_t('0'), size_t('9') +1 >;// need extra constexpr mapping for numeric
+template< typename T> using NumericIntegralValue = IntegralValueT<T, '0', '9' +1 >;// need extra constexpr mapping for alphaNumeric
+ using AlphaNumericIntegralValue = IntegralValueT<uint128_t, 0, 64, AlphaNumericMap>;
+
 
 //test
 
 #include <assert.h>
 #include <iostream>
+
+void testAlphaNumeric(){
+
+    int max = AlphaNumericIntegralValue::MaxElementNum ;
+    constexpr const char* inc1 = "zzzzzzzzzzzzzzzzzzzzz";
+    assert(strlen(inc1) == 21);
+    constexpr AlphaNumericIntegralValue vc1(inc1);
+    std::string inc1_t = vc1.toString();
+    assert(inc1_t == inc1 );
+    assert(AlphaNumericIntegralValue("1000").toString() == "1000");
+    assert(AlphaNumericIntegralValue("001000").toString() == "001000");
+    assert(AlphaNumericIntegralValue("").toString() == "");
+
+    //zeroes at the beginning and end are significant
+    assert(AlphaNumericIntegralValue("1000")  != AlphaNumericIntegralValue("100"));
+    assert(AlphaNumericIntegralValue("0xxx")  != AlphaNumericIntegralValue("xxx"));
+    assert(AlphaNumericIntegralValue("x0")  != AlphaNumericIntegralValue("x"));
+
+}
 
 void testInit();
 void test0();
@@ -105,7 +171,9 @@ void test2();
 
 
 int main() {
+    testAlphaNumeric();
     testInit();
+
     test0();
     test1();
     test2();
@@ -122,25 +190,31 @@ void testInit(){
     ConstevalIntSums<2u, 128u> sums2 { };
     size_t s = bitNumber<uint128_t, 255>();
 
+    constexpr AlphaNumericMap anmap;
+    for(size_t p = 33; p < AlphaNumericMap::Size; ++p){
+        std::cout << char(p) << "->" << anmap._map[p] << " ";
+    }
+
     assert((IntegralValueT<uint64_t, 0, 256>::Base) ==256);
     assert((IntegralValueT<uint64_t, 0, 256>::OneElementBits) == 8);
     assert((IntegralValueT<uint64_t, 0, 256>::MaxElementNum) == 8 );
     std::array shifts256 = IntegralValueT<uint64_t, 0, 256>::Shifts;
+
+    assert((IntegralValueT<uint64_t, 0, 10>::MaxElementNum) == 16 );
 
     assert((IntegralValueT<uint128_t, 0, 10>::Base) == 10);
     assert((IntegralValueT<uint128_t, 0, 10>::OneElementBits) == 4 );
     assert((IntegralValueT<uint128_t, 0, 10>::MaxElementNum) == 32);
     std::array shifts128 = IntegralValueT<uint64_t, 0, 128>::Shifts;
 
-    assert((IntegralValueT<uint128_t, 0, 63>::Base) == 63);
-    assert((IntegralValueT<uint128_t, 0, 63>::OneElementBits) == 6);
-    assert((IntegralValueT<uint128_t, 0, 63>::MaxElementNum) == 21);
-    std::array shifts63 = IntegralValueT<uint128_t, 0, 63>::Shifts;
+    assert((IntegralValueT<uint128_t, 0, 64>::Base) == 64);
+    assert((IntegralValueT<uint128_t, 0, 64>::OneElementBits) == 6);
+    assert((IntegralValueT<uint128_t, 0, 64>::MaxElementNum) == 21);
+    std::array shifts63 = IntegralValueT<uint128_t, 0, 64>::Shifts;
 
-    const char* s0 = "1234";
+    const char* s0 = "123";
     IntegralValueT<uint128_t, 0, 127> ascii0(s0);
-    std::string s1 = ascii0.toString();
-    assert(s0 == s1);
+
 
     const char* brin1 = "1233456789";
     try {
@@ -294,4 +368,3 @@ void test2(){
     int i =1;
 
 }
-
