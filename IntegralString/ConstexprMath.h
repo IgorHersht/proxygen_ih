@@ -89,6 +89,18 @@ template <auto Base, std::size_t Max> struct ConstevalIntSums {
     std::array<T, Size> _values { };
 };
 
+template<typename T, size_t Diff>
+consteval size_t bitNumber(){
+    constexpr size_t MaxBits = sizeof(T) * 8;
+    const std::bitset<MaxBits> bs(Diff);
+    for(size_t i = MaxBits - 1; i >= 0; --i){
+        if(bs[i] !=0){
+            return i + 1;
+        }
+    }
+    return 0;
+}
+
 struct NoTranslationMap{};
 struct AlphaNumericMap{
     constexpr static  size_t Size = 128;
