@@ -11,25 +11,9 @@
 # define uint128_t  unsigned __int128
 #endif
 
-// This is an optimization for a short string based on representing those strings as  integrals.
-// The optimization can be used in both compile-time and run-time contexts.
-//
-// IntegralValueBitT  and IntegralValueMST are 2 different implementations of the optimization.
-// Both implementations iterate over chars on the input string and "inserts" them in output integral.
-// But they do it differently.
-//
-//  IntegralValueBitT calculates maximum number of bits for given [begin,end) and uses bitwise operators to "insert" chars into output integral.
-//  This implementation algorithm is fast. But max integral ( given [begin,end) ) could be higher than in IntegralValueMST.
-//
-//  IntegralValueMST uses different algorithm: integral out = sum(index,char_value * pow(max_char_value, index) ).
-// Where max_char_value = end - begin.
-// pow(max_char_value, index) is pre-calculated at compile time ( see struct ConstevalIntPows ) but it is still much slower than IntegralValueBitT.
-// Another advantage that pow(max_char_value, index) can overflow for long input strings.
-// The advantage of this algorithm is minimization of output integral
 
-
-enum class ErrorPolicy{MaxInvalid, Exception};
-template< typename T, size_t begin, size_t end, typename TranslationMap = NoTranslationMap, ErrorPolicy errorPolicy = ErrorPolicy::MaxInvalid  > struct IntegralValueBitT {
+ enum class ErrorPolicy{MaxInvalid, Exception};
+template< typename T, size_t begin, size_t end, typename TranslationMap = NoTranslationMap, ErrorPolicy errorPolicy = ErrorPolicy::MaxInvalid  > struct IntegralValueT {
     static_assert(((std::is_integral_v<T> || std::is_enum_v<T>) && std::is_unsigned_v<T>) ||
                   std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
     static_assert(end > begin);
@@ -43,8 +27,8 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
     static constexpr TranslationMap translationMap{};
 
 
-    IntegralValueBitT() = delete;
-    constexpr IntegralValueBitT(std::string_view  value) {
+    IntegralValueT() = delete;
+    constexpr IntegralValueT(std::string_view  value) {
         init(value);
     }
 
@@ -119,117 +103,19 @@ private:
     }
 
     constexpr char elementTranslation(char ch) const{
-        if constexpr(std::is_same_v<TranslationMap, AlphaNumericMap>){
-            size_t tmp = translationMap._map[size_t(ch)];
-            return translationMap._map[ch];
-        }else{
-            return ch;
-        }
+        return translationMap.translate(ch);
     }
     // printable ascii. Not fast  => for test only
      constexpr char reverseElementTranslation(char ch) const{
-        if constexpr (std::is_same_v<TranslationMap, AlphaNumericMap>){
-            if(ch == 0){
-                return 0;
-            }
-            if((ch > 0) && ch <= 10){
-                return ch   - elementTranslation('0') + '0';
-            }
-            if((ch > 10) && (ch < 37) ){
-                return ch  - elementTranslation('A') + 'A';
-            }
-            if(ch == 37 ){
-                return '-';
-            }
-            if((ch > 37) && (ch < 64) ){
-                return ch - elementTranslation('a')  + 'a';
-            }
-            throw std::runtime_error("Input out of Range");
-
-        }else{
-            return ch;
-        }
+        return translationMap.reverseTranslate(ch);
     }
 private:
     T _value{ };
 };
 
-template< typename T> using ByteIntegralValue = IntegralValueBitT<T, 0, 256>;
-template< typename T> using AsciiIntegralValue = IntegralValueBitT<T, 0, 128>;
- using AlphaNumericIntegralValue = IntegralValueBitT<uint128_t, 0, 64, AlphaNumericMap>;
-///
-template< typename T, uint16_t begin, uint16_t end, bool isShortInputOk = true,  bool throwOnInvalid = true > class IntegralValueMST {
-    static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
-    static_assert(end > begin);
-    static constexpr size_t Base = end - begin;
-    static constexpr size_t Size = sizeof(T);
-    static constexpr ConstevalIntPows<Base, Size> Pows { };
-public:
-    IntegralValueMST() = delete;
-    constexpr explicit IntegralValueMST(std::string_view  value) {
-        init(value);
-        if (!std::is_constant_evaluated()) {
-            if ((_value == _invalidValue) && throwOnInvalid) {
-                throw std::runtime_error("Invalid input string");
-            }
-        }
-    }
-
-    constexpr operator T () const {
-        return _value;
-    }
-
-    constexpr static bool isValid(std::string_view  value ) {
-        const size_t size = value.size();
-        if(size > Size) [[unlikely]] {
-            return false;
-        }
-        if( (size < Size) && !isShortInputOk  ) [[unlikely]] {
-            return false;
-        }
-        for (size_t p = 0; p < size; ++p) {
-            const int v =value[p ] - begin;
-            if( (v  < 0) || (v >= Base )  ) [[unlikely]] {
-                return false;
-            }
-        }
-        return true;
-    }
-
-private:
-    constexpr void init(std::string_view  value) {
-        const size_t size = value.size();
-
-        if (std::is_constant_evaluated()) {
-            std::array<char, Size> arValue { };
-            for (size_t p = 0; p < size; ++p) {
-                arValue[p] = value[size - p -1] - begin;
-            }
-            for (size_t p = 0; p < size; ++p) {
-                const int v = arValue[p] ;
-                if( (v  < 0) || (v >= Base )  ) {
-                    _value = _invalidValue;
-                    return;
-                }
-                _value += v * Pows._values[p];
-            }
-        }else{
-            if(! isValid(value) ) [[unlikely]] {
-                _value = _invalidValue;
-            }
-
-            for (size_t p = 0; p < size; ++p) {
-                const int v =value[ size - p  -1 ] - begin;
-                _value += v * Pows._values[p];
-            }
-        }
-    }
-
-private:
-    static constexpr T _invalidValue { isShortInputOk ? std::numeric_limits<T>::max() : T{} };
-    T _value{  };
-};
-
+template< typename T> using ByteIntegralValue = IntegralValueT<T, 0, 256>;
+template< typename T> using AsciiIntegralValue = IntegralValueT<T, 0, 128>;
+ using AlphaNumericIntegralValue = IntegralValueT<uint128_t, 0, 64, AlphaNumericMap>;
 
 //test
 #include <assert.h>
@@ -253,7 +139,7 @@ void testAlphaNumeric(){
     std::string inc2_t = vc2.toString();
     assert(inc2_t == inc2);
 
-    auto ss = AlphaNumericIntegralValue("1-00").toString();
+
     assert(AlphaNumericIntegralValue("1-00").toString() == "1-00");
     assert(AlphaNumericIntegralValue("0010-0").toString() == "0010-0");
     assert(AlphaNumericIntegralValue("").toString() == "");
@@ -332,50 +218,50 @@ void testInit(){
     size_t s = bitNumber<uint128_t, 255>();
 
     constexpr AlphaNumericMap anmap;
-    for(size_t p = 33; p < AlphaNumericMap::Size; ++p){
+    for(size_t p = 32; p < AlphaNumericMap::Size -1; ++p){
         std::cout << char(p) << "->" << anmap._map[p] << " ";
     }
 
-    assert((IntegralValueBitT<uint64_t, 0, 256>::Base) == 256);
-    assert((IntegralValueBitT<uint64_t, 0, 256>::OneElementBits) == 8);
-    assert((IntegralValueBitT<uint64_t, 0, 256>::MaxElementNum) == 8 );
-    std::array shifts256 = IntegralValueBitT<uint64_t, 0, 256>::Shifts;
+    assert((IntegralValueT<uint64_t, 0, 256>::Base) ==256);
+    assert((IntegralValueT<uint64_t, 0, 256>::OneElementBits) == 8);
+    assert((IntegralValueT<uint64_t, 0, 256>::MaxElementNum) == 8 );
+    std::array shifts256 = IntegralValueT<uint64_t, 0, 256>::Shifts;
 
-    assert((IntegralValueBitT<uint64_t, 0, 10>::MaxElementNum) == 16 );
+    assert((IntegralValueT<uint64_t, 0, 10>::MaxElementNum) == 16 );
 
-    assert((IntegralValueBitT<uint128_t, 0, 10>::Base) == 10);
-    assert((IntegralValueBitT<uint128_t, 0, 10>::OneElementBits) == 4 );
-    assert((IntegralValueBitT<uint128_t, 0, 10>::MaxElementNum) == 32);
-    std::array shifts128 = IntegralValueBitT<uint64_t, 0, 128>::Shifts;
+    assert((IntegralValueT<uint128_t, 0, 10>::Base) == 10);
+    assert((IntegralValueT<uint128_t, 0, 10>::OneElementBits) == 4 );
+    assert((IntegralValueT<uint128_t, 0, 10>::MaxElementNum) == 32);
+    std::array shifts128 = IntegralValueT<uint64_t, 0, 128>::Shifts;
 
-    assert((IntegralValueBitT<uint128_t, 0, 64>::Base) == 64);
-    assert((IntegralValueBitT<uint128_t, 0, 64>::OneElementBits) == 6);
-    assert((IntegralValueBitT<uint128_t, 0, 64>::MaxElementNum) == 21);
-    std::array shifts63 = IntegralValueBitT<uint128_t, 0, 64>::Shifts;
+    assert((IntegralValueT<uint128_t, 0, 64>::Base) == 64);
+    assert((IntegralValueT<uint128_t, 0, 64>::OneElementBits) == 6);
+    assert((IntegralValueT<uint128_t, 0, 64>::MaxElementNum) == 21);
+    std::array shifts63 = IntegralValueT<uint128_t, 0, 64>::Shifts;
 
     const char* s0 = "123";
-    IntegralValueBitT<uint128_t, 0, 127> ascii0(s0);
+    IntegralValueT<uint128_t, 0, 127> ascii0(s0);
 
 
     const char* brin1 = "1233456789";
     try {
-        uint64_t br1 = IntegralValueBitT<uint64_t, 0, 256>(brin1); // 'input is too long => exception
+        uint64_t br1 = IntegralValueT<uint64_t, 0, 256>(brin1); // 'input is too long => exception
     }catch(...){
         int i = 1;
     }
 
     constexpr const char* bcin1 = "1233456789";
-    //constexpr uint64_t bc1 = IntegralValueBitT<uint64_t, 0, 256>(bcin1); // 'input is too long => => compile error
+    //constexpr uint64_t bc1 = IntegralValueT<uint64_t, 0, 256>(bcin1); // 'input is too long => => compile error
 
     const char* brin2 = "123N";
     try {
-        uint64_t br2 = IntegralValueBitT<uint64_t, 0, 63>(brin2); // 'N' out of Range => exception
+        uint64_t br2 = IntegralValueT<uint64_t, 0, 63>(brin2); // 'N' out of Range => exception
     }catch(...){
         int i = 1;
     }
 
     constexpr const char* bcin2 = "123N";
-    //constexpr uint64_t br1 = IntegralValueBitT<uint64_t, 0, 63>(bcin2); // 'N' out of Range => compile error
+    //constexpr uint64_t br1 = IntegralValueT<uint64_t, 0, 63>(bcin2); // 'N' out of Range => compile error
 }
 
 // C string and std::string_view
@@ -459,19 +345,19 @@ void test0(){
 
 void test1(){
     // digits test
-    size_t max32 = IntegralValueBitT<uint32_t, '0', ':'>::MaxElementNum;// 8
-    uint32_t v4_d1_r = IntegralValueBitT<uint32_t, '0', ':'>("12345678");
-    constexpr uint32_t v4_d1_b1_c = IntegralValueBitT<uint32_t, '0', ':'>("12345678");
+    size_t max32 = IntegralValueT<uint32_t, '0', ':'>::MaxElementNum;// 8
+    uint32_t v4_d1_r = IntegralValueT<uint32_t, '0', ':'>("12345678");
+    constexpr uint32_t v4_d1_b1_c = IntegralValueT<uint32_t, '0', ':'>("12345678");
     assert( v4_d1_r == v4_d1_b1_c);
-    IntegralValueBitT<uint32_t, '0', ':'> iv("1234") ;
+    IntegralValueT<uint32_t, '0', ':'> iv("1234") ;
     auto s4_d1_r = iv.toString();
 
-    uint64_t v8_d1_r = IntegralValueBitT<uint64_t, '0', ':'>("12345678");
-    constexpr uint64_t v8_d1_b1_c = IntegralValueBitT<uint64_t, '0', ':'>("12345678");
+    uint64_t v8_d1_r = IntegralValueT<uint64_t, '0', ':'>("12345678");
+    constexpr uint64_t v8_d1_b1_c = IntegralValueT<uint64_t, '0', ':'>("12345678");
     assert( v8_d1_r == v8_d1_b1_c);
 
-    uint128_t v16_d1_r = IntegralValueBitT<uint128_t, '0', ':'>("1234567812345678");
-    constexpr uint128_t v16_d1_b1_c = IntegralValueBitT<uint128_t, '0', ':'>("1234567812345678");
+    uint128_t v16_d1_r = IntegralValueT<uint128_t, '0', ':'>("1234567812345678");
+    constexpr uint128_t v16_d1_b1_c = IntegralValueT<uint128_t, '0', ':'>("1234567812345678");
     assert( v16_d1_r == v16_d1_b1_c);
 
     int i =1;

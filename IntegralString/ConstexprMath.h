@@ -101,29 +101,55 @@ consteval size_t bitNumber(){
     return 0;
 }
 
-struct NoTranslationMap{};
+struct NoTranslationMap{
+    constexpr char translate(char ch) const {
+        return ch;
+    }
+    constexpr char reverseTranslate(char ch) const {
+        return ch;
+    }
+};
 struct AlphaNumericMap{
     constexpr static  size_t Size = 128;
     constexpr static  size_t InvalidValue = 128;
+    static constexpr std::string_view AlphaNumericCharset ="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-abcdefghijklmnopqrstuvwxyz";
     constexpr AlphaNumericMap(){
         size_t size = 0;
         for(size_t p = 0; p < Size; ++p){
             if( (p >= '0') && (p <= '9') ){
-                _map[p]  = p - '0' + 1;
+                const size_t index = p - '0' + 1;
+                _map[p]  = index;
+                _reverseMap[index] = p;
             }else if((p >= 'A') && (p <= 'Z')){
-                _map[p]  = p - 'A' + 11 ;
-            }else if(p == '-'){
-                _map[p] = 37;
-            }else if((p >= 'a') && (p <= 'z')){
-             _map[p]  = p - 'a' + 38;
+                const size_t index = p - 'A' + 11;
+                _map[p]  = index;
+                _reverseMap[index] = p;
+            } else if(p == '-'){
+                const size_t index = 37;
+                _map[p]  = index;
+                _reverseMap[index] = p;
+            }
+            else if((p >= 'a') && (p <= 'z')){
+                const size_t index = p - 'a' + 38;
+                _map[p]  = index;
+                _reverseMap[index] = p;
             }else{
                 _map[p] = InvalidValue;
             }
         }
-
+    }
+    constexpr char translate(char ch) const {
+        return _map[ch];
+    }
+    constexpr char reverseTranslate(char ch) const {
+        if((ch >= 0) && (ch <= AlphaNumericCharset.size() )){
+            return _reverseMap[ch];
+        }
+        return InvalidValue;
     }
 
     std::array<size_t , Size> _map{};
+    std::array<size_t , AlphaNumericCharset.size() +1 > _reverseMap{};
 };
 
 
