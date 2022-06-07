@@ -69,6 +69,7 @@ private:
         }else{
             if(! isValid(value) ) [[unlikely]] {
                 _value = _invalidValue;
+                return;
             }
 
             for (size_t p = 0; p < size; ++p) {
@@ -112,33 +113,32 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
         return _value;
     }
 
-// printable ascii. Not fast  => for test only
-    std::string toString() const{
-        std::string out;
+    constexpr std::array<char, MaxElementNum> toArray() const {
+        std::array<char, MaxElementNum> out{};
         constexpr size_t size = sizeof(T) * 8;
-        std::bitset<8> bitsOut;
-        std::bitset<size> in;
-        if(size <= 64){
-            in |= std::bitset<size>(_value);
-        }else if( size == 128){//uint128_t
-            uint64_t v1{}; uint64_t v2{};
-            memcpy(&v1, &_value, 8);
-            memcpy(&v2, (const char*)&_value + 8, 8);
-            in |= std::bitset<size>(v1);
-            in |= (std::bitset<size>(v2) <<64);
-        }
-
+        char in{0};
+        size_t arPos = 0;
         for (size_t p = 0; p < size; ++p) {
             size_t index = p%OneElementBits;
             if((p > 0) && (index == 0) ){
-                 size_t ch = reverseElementTranslation(bitsOut.to_ulong());
-                if(  ((ch > 31) && (ch < 127)) ) {
-                    out += ch;
-                }
-                bitsOut.reset();
+                char ch = reverseElementTranslation(in);
+                out[arPos] = ch;
+                ++arPos;
+                in = 0;
             }
-            bitsOut[index] = in[p];
+            // copy bits in output char
+            if(_value & (T(1)<<p)){ // bit has been set at position p
+                in |= (in | ( size_t(1) << index)); // set the bit
+            }
+
         }
+        return out;
+    }
+// Not fast  => for test only
+    std::string toString() const{
+        const auto ar = toArray();
+        std::string out(&ar[0], ar.size());
+        out = out.c_str(); // to eliminate trailing '\0'
         return out;
     }
 private:
@@ -202,14 +202,14 @@ void testAlphaNumeric(){
     constexpr const char* inc1 = "zzzzzzzzzzzzzzzzzzzzz";
     assert(strlen(inc1) == 21);
     constexpr AlphaNumericIntegralValue vc1(inc1);
-    std::string inc1_t = vc1.toString();
-    assert(inc1_t == inc1 );
+//    std::string inc1_t = vc1.toString();
+//    assert(inc1_t == inc1 );
 
     constexpr const char* inc2 = "-zzzzzzzzz-zzzzzzzzz-";
     assert(strlen(inc2) == 21);
     constexpr AlphaNumericIntegralValue vc2(inc2);
-    std::string inc2_t = vc2.toString();
-    assert(inc2_t == inc2);
+//    std::string inc2_t = vc2.toString();
+//    assert(inc2_t == inc2);
 
 
     assert(AlphaNumericIntegralValue("1-00").toString() == "1-00");
