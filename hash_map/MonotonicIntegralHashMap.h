@@ -39,7 +39,7 @@ template< typename Key, typename T, typename Hash = std::hash<Key>, typename Key
     constexpr static size_t element_size =  sizeof(std::pmr::unordered_map< Key, T >::value_type ) + 2*sizeof(void*) + alignof(std::max_align_t); //pool size estimate per map element
     constexpr static size_t loadFactor = 5;
 public:
-    using Map = std::pmr::unordered_map<Key, T>;
+    using Map = std::pmr::unordered_map<Key, T, Hash, KeyEqual >;
     using iterator = typename Map::iterator;
     using const_iterator = typename Map::const_iterator;
 
@@ -80,7 +80,7 @@ private:
     size_t    _bufferSize;
     std::unique_ptr<std::byte[]> _buffer;
     std::pmr::monotonic_buffer_resource _pool;
-    std::pmr::unordered_map<Key, T, Hash, KeyEqual > _map;
+    Map _map;
 };
 
 #endif //HASH_MAP_MONOTONICINTEGRALHASHMAP_H

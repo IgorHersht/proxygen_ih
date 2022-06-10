@@ -3,7 +3,7 @@
 //test
 #include <assert.h>
 #include <iostream>
-#include <set>
+#include <map>
 #include "MonotonicIntegralHashMap.h"
 #include "gen_string.h"
 
@@ -24,20 +24,20 @@ void testSplit(){
 }
 
 void testMap(){
-    MonotonicIntegralHashMap<uint128_t, uint128_t,Uint128Hasher> map(IN_SIZE);
+    MonotonicIntegralHashMap<uint128_t, size_t, Uint128Hasher> map(IN_SIZE);
     gen_strings(19);
     inputs.emplace_back(inputs[0]); // to have dup
-    std::multiset<uint128_t> ints;
+    std::vector<uint128_t> ints;
     for(std::string& in: inputs){
-        ints.emplace(AlphaNumericIntegralValue(in));
+        ints.emplace_back(AlphaNumericIntegralValue(in));
     }
 
+    std::map<uint128_t, size_t> in_out;
     size_t p = 0;
     for(uint128_t e: ints ){
-        bool unique = map.tryEmplace(e, p).second;
-        if(!unique){
-            assert( ints.count(e) > 1 ) ;
-        }
+        bool unique1 = map.tryEmplace(e, p).second;
+        bool unique2 = in_out.emplace(e, p).second;
+        assert(unique1 == unique2);
         ++p;
     }
 }
