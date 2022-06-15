@@ -14,6 +14,18 @@
 # define uint128_t  unsigned __int128
 #endif
 
+template <typename T> constexpr bool isBitSet(T value, size_t  pos){
+    return (value & (T(1)<<pos));
+}
+
+template <typename T> constexpr void setBit(T& value, size_t  pos){
+    value = (value | (T(1) << pos));
+}
+
+template <typename T> constexpr void unsetBit(T& value, size_t  pos){
+    value = ( value & ~(T(1) << pos));
+}
+
 template < auto Base, std::size_t Exp> struct ConstevalIntPow {
     using T = decltype(Base);
     static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned integral type");

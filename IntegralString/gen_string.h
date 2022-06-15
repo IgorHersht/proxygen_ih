@@ -17,7 +17,7 @@
 #include <random>
 #include <sys/resource.h>
 
-constexpr size_t IN_SIZE = 100000;
+constexpr size_t IN_SIZE = 1000000;
 static std::vector<std::string> inputs(IN_SIZE);
 
 static const char charset[] =

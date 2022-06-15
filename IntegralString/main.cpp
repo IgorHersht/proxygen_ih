@@ -99,7 +99,6 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
     static constexpr T InvalidValue {std::numeric_limits<T>::max()};// assume max is invalid
     static constexpr TranslationMap translationMap{};
 
-
     IntegralValueTBit() = delete;
     constexpr IntegralValueTBit(std::string_view  value) {
         init(value);
@@ -115,22 +114,10 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
 
     constexpr std::array<char, MaxElementNum> toArray() const {
         std::array<char, MaxElementNum> out{};
-        constexpr size_t size = sizeof(T) * 8;
-        char in{0};
-        size_t arPos = 0;
-        for (size_t p = 0; p < size; ++p) {
-            size_t index = p%OneElementBits;
-            if((p > 0) && (index == 0) ){
-                char ch = reverseElementTranslation(in);
-                out[arPos] = ch;
-                ++arPos;
-                in = 0;
-            }
-            // copy bits in output char
-            if(_value & (T(1)<<p)){ // bit has been set at position p
-                in |= (in | ( size_t(1) << index)); // set the bit
-            }
-
+        for (size_t p = 0; p < Shifts.size(); ++p){
+            char in  = (char)(_value >> Shifts[p]) & OneElemenMask ;
+            char ch = reverseElementTranslation(in);
+            out.at( p ) = ch;
         }
         return out;
     }
@@ -181,7 +168,16 @@ private:
      constexpr char reverseElementTranslation(char ch) const{
         return translationMap.reverseTranslate(ch);
     }
+
+    static constexpr char getOneElemenMask(){
+        char mask = 0;
+        for(size_t p =0; p < OneElementBits; ++p ){
+            setBit(mask, p);
+        }
+        return mask;
+    }
 private:
+    static constexpr char OneElemenMask{getOneElemenMask()};
     T _value{ };
 };
 
@@ -202,14 +198,14 @@ void testAlphaNumeric(){
     constexpr const char* inc1 = "zzzzzzzzzzzzzzzzzzzzz";
     assert(strlen(inc1) == 21);
     constexpr AlphaNumericIntegralValue vc1(inc1);
-//    std::string inc1_t = vc1.toString();
-//    assert(inc1_t == inc1 );
+    std::string inc1_t = vc1.toString();
+    assert(inc1_t == inc1 );
 
     constexpr const char* inc2 = "-zzzzzzzzz-zzzzzzzzz-";
     assert(strlen(inc2) == 21);
     constexpr AlphaNumericIntegralValue vc2(inc2);
-//    std::string inc2_t = vc2.toString();
-//    assert(inc2_t == inc2);
+    std::string inc2_t = vc2.toString();
+   assert(inc2_t == inc2);
 
 
     assert(AlphaNumericIntegralValue("1-00").toString() == "1-00");
