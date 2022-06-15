@@ -17,6 +17,8 @@
 # define uint128_t  unsigned __int128
 #endif
 
+
+
 template< typename T, uint16_t begin, uint16_t end, bool isShortInputOk = true,  bool throwOnInvalid = true > class IntegralValueTMS {
     static_assert( ( (std::is_integral_v<T>  || std::is_enum_v<T>  ) &&  std::is_unsigned_v<T> ) || std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
     static_assert(end > begin);
@@ -91,7 +93,7 @@ private:
 };
 
 
-enum class ErrorPolicy{MaxInvalid, Exception};
+ enum class ErrorPolicy{MaxInvalid, Exception};
 template< typename T, size_t begin, size_t end, typename TranslationMap = NoTranslationMap, ErrorPolicy errorPolicy = ErrorPolicy::MaxInvalid  > struct IntegralValueTBit {
     static_assert(((std::is_integral_v<T> || std::is_enum_v<T>) && std::is_unsigned_v<T>) ||
                   std::is_same_v<T, unsigned char> || std::is_same_v<T, uint128_t>, "Should be a unsigned int type");
@@ -104,7 +106,6 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
     static constexpr std::array Shifts = ConstevalIntSums<OneElementBits, sizeof(T) * 8>()._values;
     static constexpr T InvalidValue {std::numeric_limits<T>::max()};// assume max is invalid
     static constexpr TranslationMap translationMap{};
-
 
     IntegralValueTBit() = delete;
     constexpr IntegralValueTBit(std::string_view  value) {
@@ -121,21 +122,10 @@ template< typename T, size_t begin, size_t end, typename TranslationMap = NoTran
 
     constexpr std::array<char, MaxElementNum> toArray() const {
         std::array<char, MaxElementNum> out{};
-        constexpr size_t size = sizeof(T) * 8;
-        char in{0};
-        size_t arPos = 0;
-        for (size_t p = 0; p < size; ++p) {
-            size_t index = p%OneElementBits;
-            if((p > 0) && (index == 0) ){
-                char ch = reverseElementTranslation(in);
-                out[arPos] = ch;
-                ++arPos;
-                in = 0;
-            }
-            // copy bit in output char
-            if(isBitSet(_value, p)){
-                setBit(in, index );
-            }
+        for (size_t p = 0; p < Shifts.size(); ++p){
+            char in  = (char)(_value >> Shifts[p]) & OneElemenMask ;
+            char ch = reverseElementTranslation(in);
+            out.at( p ) = ch;
         }
         return out;
     }
@@ -183,13 +173,22 @@ private:
         return translationMap.translate(ch);
     }
     // printable ascii. Not fast  => for test only
-    constexpr char reverseElementTranslation(char ch) const{
+     constexpr char reverseElementTranslation(char ch) const{
         return translationMap.reverseTranslate(ch);
     }
+
+    static constexpr char getOneElemenMask(){
+        char mask = 0;
+        for(size_t p =0; p < OneElementBits; ++p ){
+            setBit(mask, p);
+        }
+        return mask;
+    }
 private:
+    static constexpr char OneElemenMask{getOneElemenMask()};
     T _value{ };
 };
 
 template< typename T> using ByteIntegralValue = IntegralValueTBit<T, 0, 256>;
 template< typename T> using AsciiIntegralValue = IntegralValueTBit<T, 0, 128>;
-using AlphaNumericIntegralValue = IntegralValueTBit<uint128_t, 0, 64, AlphaNumericMap>;
+ using AlphaNumericIntegralValue = IntegralValueTBit<uint128_t, 0, 64, AlphaNumericMap>;
