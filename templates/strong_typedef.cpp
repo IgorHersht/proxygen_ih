@@ -4,7 +4,7 @@
 
 template <typename T, typename U> struct strong_typedef{
     explicit constexpr strong_typedef( T value ):m_value(value){}
-    auto operator<=> (const strong_typedef& ) const = default;// cannot be constexpr for std::string for my compiler ( no constexpr std::string yet)
+    auto operator<=> (const strong_typedef& ) const = default;// impicitly constexpr
     constexpr T value() const {
         return m_value;
     }
@@ -45,6 +45,7 @@ int main(){
 
     std::map<StringThree, int> m1;
     m1.try_emplace(StringThree("5"), 25);
+    constexpr auto r = IntOne(5) <=> IntOne(6);
     int i =1;
 
 }
