@@ -1,4 +1,4 @@
-// https://www.cppstories.com/2022/tuple-iteration-apply/
+
 #include <tuple>
 #include <concepts>
 
@@ -19,49 +19,53 @@ void for_each(TupleT&& tp, Fn&& fn) requires is_tuple_v<TupleT>  {
     );
 }
 
-template <typename TupleT, typename Out, typename Fn>
-void for_each(TupleT&& tp, Out& out,  Fn&& fn) requires is_tuple_v<TupleT> {
-    std::apply (
-        [&fn, &out]<typename ...T>(T&& ...args)  requires (... && std::invocable<Fn, Out&, T>) {
-            (std::forward<Fn>(fn)(out,std::forward<T>(args)), ...);
-        }, std::forward<TupleT>(tp)
-    );
-}
-
 /// test
 #include <string>
-#include <iostream>
-#include <assert.h>
-std::tuple<int, char> t1{ 10, 'x'};
-std::tuple<int, char> t2{ 1000000, 'x'};
+#include <concepts>
+#include <cassert>
 
-auto printElem1 = [](const auto& x) { std::cout << ", " << x; };
+auto increment1 = []( auto& t) { ++t ; };
 
- struct printElem2 {
-    template <typename T> void operator()(T t) {
-        std::cout << ", " << t;
-    }
-};
-
-auto check = [](bool& st, const auto& x) {
-    std::string v = std::to_string(x);
-    if( v.size() >5) {
-        st = false;
-    }
+struct increment2 {
+    void operator()(auto& t) { ++t;}
 };
 
 
 int main() {
+    std::tuple<int, char> t1{ 10, 'a'};
 
-    for_each(t1, printElem1);
-    for_each(t1, printElem2());
+    for_each(t1, increment1);
+    assert(std::get<0>(t1) == 11);
+    assert(std::get<1>(t1) == 'b');
+    for_each(t1, increment2());
+    assert(std::get<0>(t1) == 12);
+    assert(std::get<1>(t1) == 'c');
 
-    bool status = true;
-    for_each(t1, status, check );
+    const int increase = 2; bool status = true;
+    std::tuple<int, std::string> t2{ 10,std::string("10")};
+    auto addWithTest = [increase, &status] < typename T>  ( T& t) {
+        if constexpr (std::same_as<T, int>) {
+           t +=  increase;
+            status = t < 13;
+        } else {
+            int ti = std::stoi(t);
+            ti +=  increase;
+            status = ti < 13;
+            t = std::to_string(ti);
+        }
+    };
+     for_each(t2, addWithTest);
+     assert(std::get<0>(t2) == 12);
+    assert(std::get<1>(t2) == std::string("12"));
     assert(status);
-    for_each(t2, status, check );
+    for_each(t2, addWithTest);
+    assert(std::get<0>(t2) == 14);
+    assert(std::get<1>(t2) == std::string("14"));
     assert(!status);
-    int i =1;
 }
+
+
+
+
 
 
