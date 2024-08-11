@@ -1,25 +1,4 @@
 
-#include <tuple>
-#include <concepts>
-
-template <typename T>
-struct IsTupleImpl : std::false_type {};
-
-template <typename... U>
-struct IsTupleImpl<std::tuple <U...>> : std::true_type {};
-
-template <typename T> constexpr static bool is_tuple_v = IsTupleImpl<std::decay_t<T>>::value;
-
-template <typename TupleT,  typename Fn>
-void for_each(TupleT&& tp, Fn&& fn) requires is_tuple_v<TupleT>  {
-    std::apply (
-        [&fn]<typename ...T>(T&& ...args) requires (... && std::invocable<Fn, T>) {
-            (std::forward<Fn>(fn)(std::forward<T>(args)), ...);
-        }, std::forward<TupleT>(tp)
-    );
-}
-
-/// test
 #// https://www.cppstories.com/2022/tuple-iteration-apply/
 #include <tuple>
 #include <concepts>
@@ -32,8 +11,11 @@ struct IsTupleImpl<std::tuple <U...>> : std::true_type {};
 
 template <typename T> constexpr static bool is_tuple_v = IsTupleImpl<std::decay_t<T>>::value;
 
-template <typename TupleT,  typename Fn>
-void for_each(TupleT&& tp, Fn&& fn) requires is_tuple_v<TupleT>  {
+template <typename T> concept TupleType = is_tuple_v<T>;
+
+
+template <TupleType TupleT,  typename Fn>
+void for_each(TupleT&& tp, Fn&& fn)  {
     std::apply (
         [&fn]<typename ...T>(T&& ...args) requires (... && std::invocable<Fn, T>) {
             (std::forward<Fn>(fn)(std::forward<T>(args)), ...);
@@ -51,6 +33,10 @@ auto increment1 = []( auto& t) { ++t ; };
 struct increment2 {
     void operator()(auto& t) { ++t;}
 };
+auto increment3 = []<typename T> (const T* ) {
+    std::cout << sizeof(T) <<std::endl;
+};
+
 
 
 int main() {
@@ -79,6 +65,7 @@ int main() {
     assert(std::get<0>(t1) == 16);
     assert(!status);
 
+    std::tuple<int*, char*> t3{ };
+
+    for_each(t3, increment3);
 }
-
-
