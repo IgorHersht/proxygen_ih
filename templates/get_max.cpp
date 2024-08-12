@@ -1,22 +1,21 @@
 #include <algorithm>
+#include <tuple>
 
-template <class... T>
-static constexpr size_t get_max_size() {
-    return std::max({sizeof(T)...});
-}
-template <class... T>
-static constexpr size_t get_max_align() {
-    return std::max({alignof(T)...});
-}
+template <class... Ts> static consteval size_t get_max_size() requires(sizeof...(Ts) >1)  { return std::max({sizeof(Ts)...}); }
+template <class T> static consteval size_t get_max_size()   { return sizeof(T); }
+template <class... Ts> static consteval size_t get_max_size(std::tuple<Ts...>  )  { return std::max({sizeof(Ts)...}); }
 
 //test
 #include <array>
 struct V {
-    std::array<char, 16> ar;
+   std::array<char, 16> ar;
 };
 
 int main() {
-   constexpr int i = get_max_size<char, int, V, double>();
-    constexpr int k = get_max_align<char, double, int, V>();
-    int j =1;
+   static_assert(16 == get_max_size<char, int, V, double>());
+   static_assert(8 == get_max_size<double>());
+
+   using TT = std::tuple<char, int, V, double>;
+   constexpr TT t;
+   static_assert(16 == get_max_size(t));
 }
