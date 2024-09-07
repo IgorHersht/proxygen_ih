@@ -13,14 +13,12 @@ template <typename... TS> concept same_as_tuple = is_tuple_v<TS...>;
 
 template<size_t Idx,same_as_tuple T>
  size_t tuple_element_offset() {
-    return static_cast<size_t>(
-                reinterpret_cast<char*>(&std::get<Idx>(*reinterpret_cast<T*>(0))) - reinterpret_cast<char*>(0));
+    return(size_t)( &std::get<Idx>(*reinterpret_cast<T*>(0)) );
 }
 
 template<typename ET,same_as_tuple T>
  size_t tuple_element_offset() {
-    return static_cast<size_t>(
-                reinterpret_cast<char*>(&std::get<ET>(*reinterpret_cast<T*>(0))) - reinterpret_cast<char*>(0));
+    return (size_t)( &std::get<ET>(*reinterpret_cast<T*>(0)) );
 }
 //// test
 struct C {
@@ -40,7 +38,7 @@ int main() {
     assert(offsetof(C,d) == (tuple_element_offset<0, MyTuple>()) );
     assert(offsetof(C,ar) == (tuple_element_offset<1, MyTuple>()) );
     assert(offsetof(C,ch) == (tuple_element_offset<2, MyTuple>()) );
-
 }
+
 
 
