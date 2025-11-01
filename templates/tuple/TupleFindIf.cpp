@@ -1,3 +1,4 @@
+//https://www.fluentcpp.com/2019/03/08/stl-algorithms-on-tuples/
 #include <tuple>
 #include <utility>
 template<typename Tuple, typename F> constexpr std::size_t  tuple_find(const Tuple &tuple, F &&f){
